@@ -1,0 +1,3 @@
+[submodule "sc2gym"]
+	path = sc2gym
+	url = https://github.com/islamelnabarawy/sc2gym.git
