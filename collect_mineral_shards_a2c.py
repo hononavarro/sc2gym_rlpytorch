@@ -1,39 +1,20 @@
-import copy
-import glob
-import os
-import time
+import sys
+
+import inspect
+from storage import RolloutStorage
 
 import math
 import random
-import matplotlib
-import matplotlib.pyplot as plt
 from collections import namedtuple
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-from torch.autograd import Variable
 import numpy as np
 import gym
 from absl import flags
-
-import gym
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from models import a2c
 import torch.optim as optim
-from torch.autograd import Variable
 
-from arguments import get_args
-from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
-from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
-from baselines.common.vec_env.vec_normalize import VecNormalize
-from envs import make_env
-from kfac import KFACOptimizer
-from model import CNNPolicy, MLPPolicy
-from storage import RolloutStorage
-from visualize import visdom_plot
+
+# noinspection PyUnresolvedReferences
+import sc2gym.envs
 
 FLAGS = flags.FLAGS
 FLAGS([__file__])
@@ -47,19 +28,45 @@ _ENV_NAME = "SC2CollectMineralShards-v0"
 _VISUALIZE = True
 _STEP_MUL = None
 _NUM_EPISODES = 10000
+_CUDA=True
 
+
+Transition = namedtuple('Transition',
+                        ('state', 'action', 'next_state', 'reward'))
+
+class ReplayMemory(object):
+
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.memory = []
+        self.position = 0
+
+    def push(self, *args):
+        """Saves a transition."""
+        if len(self.memory) < self.capacity:
+            self.memory.append(None)
+        self.memory[self.position] = Transition(*args)
+        self.position = (self.position + 1) % self.capacity
+
+    def sample(self, batch_size):
+        return random.sample(self.memory, batch_size)
+
+    def __len__(self):
+        return len(self.memory)
 
 class CollectMineralShards_A2C:
 
 
     def __init__(self, env_name, visualize=False, step_mul=None) -> None:
 
+        print("creating env....")
         self.env_name = env_name
         self.visualize = visualize
         self.step_mul = step_mul
 
     def run(self, num_episodes=1):
         env = gym.make(self.env_name)
+
         env.settings['visualize'] = self.visualize
         env.settings['step_mul'] = self.step_mul
 
@@ -122,11 +129,45 @@ def select_action(state):
 
 def main():
 
-    NUM_AGENTS = 1
+    NUM_AGENTS = 4
+    NUM_FRAMES_TO_STACK = 1
+    LR=7e-4
+    EPS=1e-5
+    ALPHA=0.99
+    NUM_STEPS=10000
 
-    envs = [CollectMineralShards_A2C(_ENV_NAME,_VISUALIZE, _STEP_MUL) for i in range(NUM_AGENTS)]
+
+    #TODO this should be given by env
+    obs_shape = [64, 64]
+    action_space = 1024
+
+    RECURRENT_POLICY=False
+    ACTION_SPACE = obs_shape[0]*obs_shape[1]
+
+    envs = [CollectMineralShards_A2C(_ENV_NAME, _VISUALIZE, _STEP_MUL) for i in range(NUM_AGENTS)]
+
+    obs_shape = (obs_shape[0] * NUM_FRAMES_TO_STACK, *obs_shape[1:])
+
+    actor_critic = a2c.CNNPolicy(obs_shape[0], ACTION_SPACE, RECURRENT_POLICY)
+    optimizer = optim.RMSprop(actor_critic.parameters(), LR, eps=EPS, alpha=ALPHA)
 
 
+    rollouts = RolloutStorage(NUM_STEPS, NUM_AGENTS, obs_shape, action_space, actor_critic.state_size)
+
+    sys.exit()
+
+
+
+    # if len(envs.observation_space.shape) == 3:
+    #     actor_critic = CNNPolicy(obs_shape[0], envs.action_space, args.recurrent_policy)
+
+
+    if _CUDA:
+        actor_critic.cuda()
+
+    optimizer = optim.RMSprop(model.parameters())
+    memory = ReplayMemory(10000)
+    steps_done = 0
 
 
 
