@@ -18,7 +18,10 @@ In this repo we cover two algorithms for solving different starcraft mini-games.
 
 Thanks to slamelnabarawy his repo has been a good baseline for the environemnt: [Link to the repo](https://github.com/islamelnabarawy/sc2gym/commit/4897f000520486524553021baf7ea4c310008752)
 
+ikostrikov with [this repo](https://github.com/ikostrikov/pytorch-a2c-ppo-acktr) helpped us to migrate our experiments to Pytorch. Thanks to him too :)
+
 chris-chris has with [his repo](https://github.com/chris-chris/pysc2-examples) has been also been an inspiration for us.
+
 
 
 

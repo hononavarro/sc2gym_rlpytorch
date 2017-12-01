@@ -215,4 +215,4 @@ venv.bak/
 
 
 #Python
-.npy
+*.npy
