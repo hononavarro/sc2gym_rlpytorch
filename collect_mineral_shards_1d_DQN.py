@@ -117,7 +117,7 @@ episode_rewards = []
 means = [0]*(n_avg_samples-1)
 
 def plot_rewards():
-    
+
     plt.figure(2)
     plt.clf()
     #rewards_t = torch.FloatTensor(episode_rewards)
@@ -147,7 +147,7 @@ class CollectMineralShards1d_DQN:
     def run(self, num_episodes=1):
         global ALGORITHM
         global episode_rewards, reward_per_episode,means
-        for ALGORITHM in [0,1]:
+        for ALGORITHM in [2]:
             reward_per_episode = []
             #episode_rewards = np.zeros((num_episodes, ), dtype=np.int32)
             for ix in range(num_episodes):
