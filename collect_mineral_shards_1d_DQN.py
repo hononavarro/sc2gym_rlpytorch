@@ -26,9 +26,9 @@ _PLAYER_NEUTRAL = 3  # beacon/minerals
 _NO_OP = 0
 
 _ENV_NAME = "SC2CollectMineralShards-v0"
-_VISUALIZE = True
+_VISUALIZE = False
 _STEP_MUL = None
-_NUM_EPISODES = 200
+_NUM_EPISODES = 10000
 
 # if gpu is to be used
 use_cuda = torch.cuda.is_available()
@@ -48,7 +48,7 @@ EPS_END = 0.05
 EPS_DECAY = 200
 
 
-PLOT_GRAPHS = True
+PLOT_GRAPHS = False
 
 class ReplayMemory(object):
 
@@ -116,7 +116,8 @@ n_avg_samples = 100
 episode_rewards = []
 means = [0]*(n_avg_samples-1)
 
-def save_rewards(plot=False):
+def plot_rewards():
+    
     plt.figure(2)
     plt.clf()
     #rewards_t = torch.FloatTensor(episode_rewards)
@@ -168,7 +169,8 @@ class CollectMineralShards1d_DQN:
 
                 episode_rewards.append(np.sum(np.array(reward_per_episode)))
                 reward_per_episode = []
-                save_rewards(plot=PLOT_GRAPHS)
+                if PLOT_GRAPHS:
+                    plot_rewards()
 
             np.save("episodeReward_"+str(ALGORITHM),np.array(episode_rewards))
             np.save("episodeRewardMean100_" + str(ALGORITHM),np.array(means))
