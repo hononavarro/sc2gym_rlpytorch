@@ -146,7 +146,7 @@ class CollectMineralShards1d_DQN:
     def run(self, num_episodes=1):
         global ALGORITHM
         global episode_rewards, reward_per_episode,means
-        for ALGORITHM in [0,1,2]:
+        for ALGORITHM in [0,1]:
             reward_per_episode = []
             #episode_rewards = np.zeros((num_episodes, ), dtype=np.int32)
             for ix in range(num_episodes):
@@ -161,7 +161,8 @@ class CollectMineralShards1d_DQN:
 
                     memory.push(obs, action, new_obs, reward)
                     obs = new_obs
-                    optimize_model()
+                    if ALGORITHM == 0:
+                        optimize_model()
                     t +=1
                     reward_per_episode.append(reward)
 
@@ -182,6 +183,8 @@ class CollectMineralShards1d_DQN:
 
         #if not neutral_y.any():
         #    raise Exception('No minerals found!')
+
+        target = [0,0]
         if(ALGORITHM == 0):
             target = select_action(obs[0])
         elif(ALGORITHM == 1):
@@ -264,11 +267,8 @@ def main():
 
     example = CollectMineralShards1d_DQN(_ENV_NAME,_VISUALIZE, _STEP_MUL)
 
-    rewards = example.run(_NUM_EPISODES)
-    print('Total reward: {}'.format(rewards.sum()))
-    print('Average reward: {} +/- {}'.format(rewards.mean(), rewards.std()))
-    print('Minimum reward: {}'.format(rewards.min()))
-    print('Maximum reward: {}'.format(rewards.max()))
+    example.run(_NUM_EPISODES)
+
 
 if __name__ == "__main__":
     main()
