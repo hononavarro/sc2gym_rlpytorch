@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 
+
 class RolloutStorage(object):
     def __init__(self, num_steps, num_processes, obs_shape, action_space, state_size):
         self.observations = torch.zeros(num_steps + 1, num_processes, *obs_shape)

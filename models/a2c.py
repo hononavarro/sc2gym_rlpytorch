@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from distributions import Categorical, DiagGaussian
-from utils import orthogonal
+from .distributions import Categorical, DiagGaussian
+
+from .utils import orthogonal
 
 
 def weights_init(m):
@@ -34,12 +35,13 @@ class FFPolicy(nn.Module):
 
 class CNNPolicy(FFPolicy):
     def __init__(self, num_inputs, action_space, use_gru):
+
         super(CNNPolicy, self).__init__()
         self.conv1 = nn.Conv2d(num_inputs, 32, 8, stride=4)
         self.conv2 = nn.Conv2d(32, 64, 4, stride=2)
         self.conv3 = nn.Conv2d(64, 32, 3, stride=1)
 
-        self.linear1 = nn.Linear(32 * 7 * 7, 512)
+        self.linear1 = nn.Linear(512, 512)
 
         if use_gru:
             self.gru = nn.GRUCell(512, 512)
@@ -93,22 +95,26 @@ class CNNPolicy(FFPolicy):
         x = self.conv3(x)
         x = F.relu(x)
 
-        x = x.view(-1, 32 * 7 * 7)
+
+        #x = x.view(32 * 7 * 7, -1)
+        x = x.view(-1, 512)
+
         x = self.linear1(x)
         x = F.relu(x)
 
-        if hasattr(self, 'gru'):
-            if inputs.size(0) == states.size(0):
-                x = states = self.gru(x, states * masks)
-            else:
-                x = x.view(-1, states.size(0), x.size(1))
-                masks = masks.view(-1, states.size(0), 1)
-                outputs = []
-                for i in range(x.size(0)):
-                    hx = states = self.gru(x[i], states * masks[i])
-                    outputs.append(hx)
-                x = torch.cat(outputs, 0)
-        return self.critic_linear(x), x, states
+        # if hasattr(self, 'gru'):
+        #     if inputs.size(0) == states.size(0):
+        #         x = states = self.gru(x, states * masks)
+        #     else:
+        #         x = x.view(-1, states.size(0), x.size(1))
+        #         masks = masks.view(-1, states.size(0), 1)
+        #         outputs = []
+        #         for i in range(x.size(0)):
+        #             hx = states = self.gru(x[i], states * masks[i])
+        #             outputs.append(hx)
+        #         x = torch.cat(outputs, 0)
+        y = self.critic_linear(x)
+        return y, x, states
 
 
 def weights_init_mlp(m):

@@ -1,20 +1,31 @@
 import sys
 
 import inspect
-from storage import RolloutStorage
+from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
+from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
+from baselines.common.vec_env.vec_normalize import VecNormalize
+import time
+
+
+
+from models.storage_aux import RolloutStorage
+from models.a2c import CNNPolicy
+from torch.autograd import Variable
+
 
 import math
 import random
 from collections import namedtuple
 import numpy as np
 import gym
+import torch
 from absl import flags
 from models import a2c
 import torch.optim as optim
 
 
 # noinspection PyUnresolvedReferences
-import sc2gym.envs
+from sc2gym import envs
 
 FLAGS = flags.FLAGS
 FLAGS([__file__])
@@ -56,8 +67,13 @@ class ReplayMemory(object):
 
 class CollectMineralShards_A2C:
 
+    def __call__(self):
+        return gym.make(self.env_name)
+
 
     def __init__(self, env_name, visualize=False, step_mul=None) -> None:
+
+
 
         print("creating env....")
         self.env_name = env_name
@@ -65,21 +81,21 @@ class CollectMineralShards_A2C:
         self.step_mul = step_mul
 
     def run(self, num_episodes=1):
-        env = gym.make(self.env_name)
 
-        env.settings['visualize'] = self.visualize
-        env.settings['step_mul'] = self.step_mul
+
+        self.env.settings['visualize'] = self.visualize
+        self.env.settings['step_mul'] = self.step_mul
 
         #episode_rewards = np.zeros((num_episodes, ), dtype=np.int32)
         for ix in range(num_episodes):
-            obs = env.reset()
+            obs = self.env.reset()
             t = 0
             done = False
             while not done:
-                action = self.get_action(env, obs)
+                action = self.get_action(self.env, obs)
 
 
-                new_obs, reward, done, _ = env.step(action)
+                new_obs, reward, done, _ = self.env.step(action)
 
                 #reward = Tensor([reward])
 
@@ -92,7 +108,7 @@ class CollectMineralShards_A2C:
             episode_rewards.append(reward)
             #plot_rewards()
 
-        env.close()
+        self.env.close()
 
         return episode_rewards
 
@@ -135,48 +151,109 @@ def main():
     EPS=1e-5
     ALPHA=0.99
     NUM_STEPS=10000
+    CUDA=True
+    RECURRENT_POLICY=False
+    #number of frames to train
+    NUM_FRAMES=10e6
 
+    #number of forward steps in A2C (default: 5)
+    NUM_STEPS = 5
+
+    NUM_UPDATES = int(NUM_FRAMES) // NUM_STEPS // NUM_AGENTS
 
     #TODO this should be given by env
     obs_shape = [64, 64]
-    action_space = 1024
 
-    RECURRENT_POLICY=False
-    ACTION_SPACE = obs_shape[0]*obs_shape[1]
 
     envs = [CollectMineralShards_A2C(_ENV_NAME, _VISUALIZE, _STEP_MUL) for i in range(NUM_AGENTS)]
+    #jenvs = [gym.make(_ENV_NAME) for i in range(NUM_AGENTS)]
+
+    envs = SubprocVecEnv(envs)
+
+    if len(envs.observation_space.shape) == 1:
+        envs = VecNormalize(envs)
+
+    obs_shape = envs.observation_space.shape
 
     obs_shape = (obs_shape[0] * NUM_FRAMES_TO_STACK, *obs_shape[1:])
 
-    actor_critic = a2c.CNNPolicy(obs_shape[0], ACTION_SPACE, RECURRENT_POLICY)
+    if len(envs.observation_space.shape) == 3:
+        actor_critic = CNNPolicy(obs_shape[0], envs.action_space, RECURRENT_POLICY)
+
+    action_shape = envs.action_space.shape
+
+    if CUDA:
+        actor_critic.cuda()
+
     optimizer = optim.RMSprop(actor_critic.parameters(), LR, eps=EPS, alpha=ALPHA)
+    rollouts = RolloutStorage(NUM_STEPS, NUM_AGENTS, obs_shape, envs.action_space, actor_critic.state_size)
+    current_obs = torch.zeros(NUM_AGENTS, *obs_shape)
 
+    def update_current_obs(obs):
+        shape_dim0 = envs.observation_space.shape[0]
+        obs = torch.from_numpy(obs).float()
+        if NUM_FRAMES_TO_STACK > 1:
+            current_obs[:, :-shape_dim0] = current_obs[:, shape_dim0:]
+        current_obs[:, -shape_dim0:] = obs
+    obs = envs.reset()
+    update_current_obs(obs)
 
-    rollouts = RolloutStorage(NUM_STEPS, NUM_AGENTS, obs_shape, action_space, actor_critic.state_size)
+    rollouts.observations[0].copy_(current_obs)
+
+    # These variables are used to compute average rewards for all processes.
+    episode_rewards = torch.zeros([NUM_AGENTS, 1])
+    final_rewards = torch.zeros([NUM_AGENTS, 1])
+
+    if CUDA:
+        current_obs = current_obs.cuda()
+        rollouts.cuda()
+
+    start = time.time()
+
+    for j in range(NUM_UPDATES):
+        for step in range(NUM_STEPS):
+            # Sample actions
+
+            # Reshape to do in a single forward pass for all steps
+            value, action, action_log_prob, states = actor_critic.act(
+                Variable(rollouts.observations[step], volatile=True),
+                Variable(rollouts.states[step], volatile=True),
+                Variable(rollouts.masks[step], volatile=True))
+
+            cpu_actions = action.data.squeeze(1).cpu().numpy()
+
+            # Obser reward and next obs
+            obs, reward, done, info = envs.step(cpu_actions)
+            reward = torch.from_numpy(np.expand_dims(np.stack(reward), 1)).float()
+            episode_rewards += reward
+
+            # If done then clean the history of observations.
+            masks = torch.FloatTensor([[0.0] if done_ else [1.0] for done_ in done])
+            final_rewards *= masks
+            final_rewards += (1 - masks) * episode_rewards
+            episode_rewards *= masks
+
+            if CUDA:
+                masks = masks.cuda()
+
+            if current_obs.dim() == 4:
+                current_obs *= masks.unsqueeze(2).unsqueeze(2)
+            else:
+                current_obs *= masks
+
+            update_current_obs(obs)
+            rollouts.insert(step, current_obs, states.data, action.data, action_log_prob.data, value.data, reward,
+                            masks)
+
+        next_value = actor_critic(Variable(rollouts.observations[-1], volatile=True),
+                              Variable(rollouts.states[-1], volatile=True),
+                              Variable(rollouts.masks[-1], volatile=True))[0].data
 
     sys.exit()
 
 
 
-    # if len(envs.observation_space.shape) == 3:
-    #     actor_critic = CNNPolicy(obs_shape[0], envs.action_space, args.recurrent_policy)
 
-
-    if _CUDA:
-        actor_critic.cuda()
-
-    optimizer = optim.RMSprop(model.parameters())
-    memory = ReplayMemory(10000)
-    steps_done = 0
-
-
-
-    # example = CollectMineralShards_A2C(_ENV_NAME,_VISUALIZE, _STEP_MUL)
-    # rewards = example.run(_NUM_EPISODES)
-    # print('Total reward: {}'.format(rewards.sum()))
-    # print('Average reward: {} +/- {}'.format(rewards.mean(), rewards.std()))
-    # print('Minimum reward: {}'.format(rewards.min()))
-    # print('Maximum reward: {}'.format(rewards.max()))
 
 if __name__ == "__main__":
     main()
