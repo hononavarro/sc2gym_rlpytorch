@@ -12,9 +12,13 @@ In this repo we cover two algorithms for solving different starcraft mini-games.
 
 ## A2C
 
-* One Ouput Array (current): 0-4095
 
 
+## ACKNOWLEDGEMENTS
+
+Thanks to slamelnabarawy his repo has been a good baseline for the environemnt: [Link to the repo](https://github.com/islamelnabarawy/sc2gym/commit/4897f000520486524553021baf7ea4c310008752)
+
+chris-chris has with [his repo](https://github.com/chris-chris/pysc2-examples) has been also been an inspiration for us.
 
 
 

@@ -263,6 +263,7 @@ def optimize_model():
 def main():
 
     example = CollectMineralShards1d_DQN(_ENV_NAME,_VISUALIZE, _STEP_MUL)
+
     rewards = example.run(_NUM_EPISODES)
     print('Total reward: {}'.format(rewards.sum()))
     print('Average reward: {} +/- {}'.format(rewards.mean(), rewards.std()))
