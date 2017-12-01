@@ -145,6 +145,13 @@ def select_action(state):
 
 def main():
 
+    ####################
+    #TODO LIST TO STUDY:
+    #* generalized advantage estimation
+    #* why gae and why it is useful?
+    #* how many steps to compute? where are they defined? How can they affect us?
+    ####################
+
     NUM_AGENTS = 4
     NUM_FRAMES_TO_STACK = 1
     LR=7e-4
@@ -153,8 +160,14 @@ def main():
     NUM_STEPS=10000
     CUDA=True
     RECURRENT_POLICY=False
+    TAU=0.95
+
+    #use generalized advantage estimation
+    GAE=False
     #number of frames to train
     NUM_FRAMES=10e6
+    #discount factor for rewards
+    GAMMA=0.99
 
     #number of forward steps in A2C (default: 5)
     NUM_STEPS = 5
@@ -220,9 +233,11 @@ def main():
                 Variable(rollouts.states[step], volatile=True),
                 Variable(rollouts.masks[step], volatile=True))
 
+            #TODO esto que conyo es?
             cpu_actions = action.data.squeeze(1).cpu().numpy()
 
             # Obser reward and next obs
+            #TODO esto esta bien? no le tendiramos que poner como dos valores por cabeza?
             obs, reward, done, info = envs.step(cpu_actions)
             reward = torch.from_numpy(np.expand_dims(np.stack(reward), 1)).float()
             episode_rewards += reward
@@ -245,9 +260,39 @@ def main():
             rollouts.insert(step, current_obs, states.data, action.data, action_log_prob.data, value.data, reward,
                             masks)
 
+
         next_value = actor_critic(Variable(rollouts.observations[-1], volatile=True),
                               Variable(rollouts.states[-1], volatile=True),
                               Variable(rollouts.masks[-1], volatile=True))[0].data
+
+        #here we do backtrace and compute everything with bellman equation
+        rollouts.compute_returns(next_value, GAE, GAMMA, TAU)
+
+        values, action_log_probs, dist_entropy, states = actor_critic.evaluate_actions(
+            Variable(rollouts.observations[:-1].view(-1, *obs_shape)),
+            Variable(rollouts.states[0].view(-1, actor_critic.state_size)),
+            Variable(rollouts.masks[:-1].view(-1, 1)),
+            Variable(rollouts.actions.view(-1, action_shape)))
+
+        #Advantagde (the second A)
+        #########################
+        #Returns computed previously
+        values = values.view(NUM_STEPS, NUM_AGENTS, 1)
+        #Probability array for each action
+        action_log_probs = action_log_probs.view(NUM_STEPS, NUM_AGENTS, 1)
+        #We can now compute the advantage with the reutrned value
+        advantages = Variable(rollouts.returns[:-1]) - values
+
+        #we compute the mean of all costs
+        value_loss = advantages.pow(2).mean()
+        action_loss = -(Variable(advantages.data) * action_log_probs).mean()
+
+    optimizer.zero_grad()
+    (value_loss * args.value_loss_coef + action_loss - dist_entropy * args.entropy_coef).backward()
+
+    nn.utils.clip_grad_norm(actor_critic.parameters(), args.max_grad_norm)
+
+    optimizer.step()
 
     sys.exit()
 
