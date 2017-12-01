@@ -28,7 +28,7 @@ _NO_OP = 0
 _ENV_NAME = "SC2CollectMineralShards-v0"
 _VISUALIZE = True
 _STEP_MUL = None
-_NUM_EPISODES = 10000
+_NUM_EPISODES = 200
 
 # if gpu is to be used
 use_cuda = torch.cuda.is_available()
@@ -48,7 +48,7 @@ EPS_END = 0.05
 EPS_DECAY = 200
 
 
-
+PLOT_GRAPHS = True
 
 class ReplayMemory(object):
 
@@ -76,47 +76,18 @@ class DQN(nn.Module):
 
     def __init__(self):
         super(DQN, self).__init__()
-        self.conv1 = nn.Conv2d(1, 8, kernel_size=5, stride=2)
-        self.bn1 = nn.BatchNorm2d(8)
-        self.conv2 = nn.Conv2d(8, 16, kernel_size=5, stride=2)
-        self.bn2 = nn.BatchNorm2d(16)
-        self.conv3 = nn.Conv2d(16, 32, kernel_size=3, stride=1)
-        self.bn3 = nn.BatchNorm2d(32)
-        self.conv4 = nn.Conv2d(32, 64, kernel_size=3, stride=1)
-        self.bn4 = nn.BatchNorm2d(64)
-        self.head = nn.Linear(5184, 1024)
-
-
-    def run(self, num_episodes=1):
-        env = gym.make(self.env_name)
-        env.settings['visualize'] = self.visualize
-        env.settings['step_mul'] = self.step_mul
-
-        episode_rewards = np.zeros((num_episodes, ), dtype=np.int32)
-        for ix in range(num_episodes):
-            obs = env.reset()
-
-            done = False
-            while not done:
-                action = self.get_action(env, obs)
-                obs, reward, done, _ = env.step(action)
-
-            episode_rewards[ix] = env.episode_reward
-
-        env.close()
-
-
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=5, stride=1)
+        self.bn1 = nn.BatchNorm2d(16)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1)
+        self.bn2 = nn.BatchNorm2d(32)
+        self.hidden = nn.Linear(3200, 1024)
+        self.head = nn.Linear(1024, 256)
 
     def forward(self, x):
         x = F.relu(self.bn1(self.conv1(x)))
-        #print (x.size())
         x = F.relu(self.bn2(self.conv2(x)))
-        #print(x.size())
-        x = F.relu(self.bn3(self.conv3(x)))
-        #print(x.size())
-        x = F.relu(self.bn4(self.conv4(x)))
-        #print(x.size())
-        return self.head(x.view(x.size(0), -1))
+        x = F.relu(self.hidden(x.view(x.size(0), -1)))
+        return self.head(x)
 
 
 model = DQN()
@@ -137,27 +108,26 @@ def select_action(state):
     steps_done += 1
     if sample > eps_threshold:
         return model(
-            Variable(torch.from_numpy(np.array(state).reshape((64,64))).unsqueeze(0).unsqueeze(0), volatile=True).type(FloatTensor)).data.max(1)[1].view(1, 1).cpu().numpy().squeeze()
+            Variable(torch.from_numpy(np.array(state).reshape((16,16))).unsqueeze(0).unsqueeze(0), volatile=True).type(FloatTensor)).data.max(1)[1].view(1, 1).cpu().numpy().squeeze()
     else:
-        return np.random.randint(1024)
+        return np.random.randint(256)
 
-
+n_avg_samples = 100
 episode_rewards = []
+means = [0]*(n_avg_samples-1)
 
-
-def plot_rewards():
+def save_rewards(plot=False):
     plt.figure(2)
     plt.clf()
-    rewards_t = torch.FloatTensor(episode_rewards)
+    #rewards_t = torch.FloatTensor(episode_rewards)
     plt.title('Training...')
     plt.xlabel('Episode')
-    plt.ylabel('Duration')
-    plt.plot(rewards_t.numpy())
+    plt.ylabel('Reward')
+    plt.plot(episode_rewards)
     # Take 100 episode averages and plot them too
-    if len(rewards_t) >= 100:
-        means = rewards_t.unfold(0, 100, 1).mean(1).view(-1)
-        means = torch.cat((torch.zeros(99), means))
-        plt.plot(means.numpy())
+    if len(episode_rewards) >= n_avg_samples:
+        means.append(np.mean(np.array(episode_rewards[-n_avg_samples-1:-1])))
+        plt.plot(means)
 
     plt.pause(0.001)  # pause a bit so that plots are updated
 
@@ -165,60 +135,64 @@ def plot_rewards():
 
 class CollectMineralShards1d_DQN:
 
-
     def __init__(self, env_name, visualize=False, step_mul=None) -> None:
         self.env_name = env_name
         self.visualize = visualize
         self.step_mul = step_mul
+        self.env = gym.make(self.env_name)
+        self.env.settings['visualize'] = self.visualize
+        self.env.settings['step_mul'] = self.step_mul
 
     def run(self, num_episodes=1):
-        env = gym.make(self.env_name)
-        env.settings['visualize'] = self.visualize
-        env.settings['step_mul'] = self.step_mul
+        global ALGORITHM
+        global episode_rewards, reward_per_episode,means
+        for ALGORITHM in [0,1,2]:
+            reward_per_episode = []
+            #episode_rewards = np.zeros((num_episodes, ), dtype=np.int32)
+            for ix in range(num_episodes):
+                obs = self.env.reset()
+                t = 0
+                done = False
+                while not done:
+                    action = self.get_action(self.env, obs)
 
-        #episode_rewards = np.zeros((num_episodes, ), dtype=np.int32)
-        for ix in range(num_episodes):
-            obs = env.reset()
-            t = 0
-            done = False
-            while not done:
-                action = self.get_action(env, obs)
 
+                    new_obs, reward, done, _ = self.env.step(action)
 
-                new_obs, reward, done, _ = env.step(action)
+                    memory.push(obs, action, new_obs, reward)
+                    obs = new_obs
+                    optimize_model()
+                    t +=1
+                    reward_per_episode.append(reward)
 
-                #reward = Tensor([reward])
+                episode_rewards.append(np.sum(np.array(reward_per_episode)))
+                reward_per_episode = []
+                save_rewards(plot=PLOT_GRAPHS)
 
-                memory.push(obs, action, new_obs, reward)
-                obs = new_obs
+            np.save("episodeReward_"+str(ALGORITHM),np.array(episode_rewards))
+            np.save("episodeRewardMean100_" + str(ALGORITHM),np.array(means))
+            episode_rewards = []
+            means = []
 
-                optimize_model()
-                t +=1
-
-            episode_rewards.append(reward)
-            #plot_rewards()
-
-        env.close()
+        self.env.close()
 
         return episode_rewards
 
     def get_action(self, env, obs):
-        neutral_y, neutral_x = (obs[0] == _PLAYER_NEUTRAL).nonzero()
-        player_y, player_x = (obs[0] == _PLAYER_FRIENDLY).nonzero()
-        if not neutral_y.any():
-            raise Exception('No minerals found!')
-        if not player_y.any():
-            raise Exception('No marines found!')
 
-        #player = [np.ceil(player_x.mean()).astype(int), np.ceil(player_y.mean()).astype(int)]
-        #shards = np.array(list(zip(neutral_x, neutral_y)))
-        #closest_ix = np.argmin(np.linalg.norm(np.array(player) - shards, axis=1))
-        #target = shards[closest_ix]
-
-        target = select_action(obs[0])
-
-
-
+        #if not neutral_y.any():
+        #    raise Exception('No minerals found!')
+        if(ALGORITHM == 0):
+            target = select_action(obs[0])
+        elif(ALGORITHM == 1):
+            target = np.random.randint(256)
+        elif (ALGORITHM == 2):
+            neutral_y, neutral_x = (obs[0] == _PLAYER_NEUTRAL).nonzero()
+            player_y, player_x = (obs[0] == _PLAYER_FRIENDLY).nonzero()
+            player = [np.ceil(player_x.mean()).astype(int), np.ceil(player_y.mean()).astype(int)]
+            shards = np.array(list(zip(neutral_x, neutral_y)))
+            closest_ix = np.argmin(np.linalg.norm(np.array(player) - shards, axis=1))
+            target = np.ravel_multi_index(shards[closest_ix], obs.shape[1:])
         return target
 
 
@@ -275,10 +249,8 @@ def optimize_model():
     # clear it. After this, we'll just end up with a Variable that has
     # requires_grad=False
     next_state_values.volatile = False
-    # Compute the expected Q values
-    expected_state_action_values = (next_state_values * GAMMA) + reward_batch
 
-    # Compute Huber loss
+    expected_state_action_values = (next_state_values * GAMMA) + reward_batch
     loss = F.smooth_l1_loss(state_action_values, expected_state_action_values)
 
     # Optimize the model
