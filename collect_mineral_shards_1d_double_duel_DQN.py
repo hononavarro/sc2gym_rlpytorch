@@ -15,6 +15,7 @@ from absl import flags
 
 # noinspection PyUnresolvedReferences
 import sc2gym.envs
+import copy
 
 
 FLAGS = flags.FLAGS
@@ -182,6 +183,7 @@ class CollectMineralShards1d_DQN:
     def run(self, num_episodes=1):
         global ALGORITHM
         global episode_rewards, reward_per_episode,means
+        global target_model
         total_steps = 0
 
         for ALGORITHM in [0]:
@@ -194,7 +196,7 @@ class CollectMineralShards1d_DQN:
                 while not done:
                     #maybe update target network
                     if total_steps % UPDATE_PERIOD == 0:
-                        target_model = deepcopy(model)
+                        target_model = copy.deepcopy(model)
                         if use_cuda:
                             target_model.cuda()
 
@@ -250,7 +252,8 @@ updates = 0
 def optimize_model():
     global last_sync
     global updates
-    global model_target
+    global target_model
+
     if len(memory) < BATCH_SIZE:
         return
     transitions = memory.sample(BATCH_SIZE)

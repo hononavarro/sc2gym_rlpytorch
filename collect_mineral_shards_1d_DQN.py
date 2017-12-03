@@ -147,7 +147,7 @@ class CollectMineralShards1d_DQN:
     def run(self, num_episodes=1):
         global ALGORITHM
         global episode_rewards, reward_per_episode,means
-        for ALGORITHM in [2]:
+        for ALGORITHM in [1]:
             reward_per_episode = []
             #episode_rewards = np.zeros((num_episodes, ), dtype=np.int32)
             for ix in range(num_episodes):
