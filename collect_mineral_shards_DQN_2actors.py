@@ -26,9 +26,9 @@ _PLAYER_NEUTRAL = 3  # beacon/minerals
 _NO_OP = 0
 
 _ENV_NAME = "SC2CollectMineralShards-v2"
-_VISUALIZE = False
+_VISUALIZE = True
 _STEP_MUL = None
-_NUM_EPISODES = 8000
+_NUM_EPISODES = 30000
 
 # if gpu is to be used
 use_cuda = torch.cuda.is_available()
@@ -48,7 +48,7 @@ EPS_END = 0.05
 EPS_DECAY = 200
 
 
-PLOT_GRAPHS = False
+PLOT_GRAPHS = True
 
 class ReplayMemory(object):
 
@@ -263,6 +263,8 @@ def optimize_model():
 
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
     loss = F.smooth_l1_loss(state_action_values, expected_state_action_values)
+
+
 
     # Optimize the model
     optimizer.zero_grad()
