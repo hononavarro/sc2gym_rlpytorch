@@ -96,7 +96,7 @@ class DQN(nn.Module):
 class Dueling_DQN(nn.Module):
 
     def __init__(self):
-        super(DQN, self).__init__()
+        super(Dueling_DQN, self).__init__()
         self.conv1 = nn.Conv2d(1, 16, kernel_size=5, stride=1)
         self.bn1 = nn.BatchNorm2d(16)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1)
@@ -117,15 +117,15 @@ class Dueling_DQN(nn.Module):
         state_hidden = F.relu(self.state_hidden(x.view(x.size(0), -1)))
         state_value = self.state_head(state_hidden)
 
-        action_hidden = F.relu(self.action_hidden(x.view(x.size(0), -1)))
+        action_hidden = F.relu(self.adv_hidden(x.view(x.size(0), -1)))
         action_value = self.action_head(action_hidden)
 
         return state_value + (action_value - action_value.mean())
 
 
 
-model = DQN()
-# model = Dueling_DQN()
+#model = DQN()
+model = Dueling_DQN()
 target_model = None
 
 if use_cuda:
