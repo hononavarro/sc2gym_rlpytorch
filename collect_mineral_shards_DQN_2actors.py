@@ -25,8 +25,8 @@ _PLAYER_FRIENDLY = 1
 _PLAYER_NEUTRAL = 3  # beacon/minerals
 _NO_OP = 0
 
-_ENV_NAME = "SC2CollectMineralShards-v0"
-_VISUALIZE = False
+_ENV_NAME = "SC2CollectMineralShards-v2"
+_VISUALIZE = True
 _STEP_MUL = None
 _NUM_EPISODES = 10000
 
@@ -140,6 +140,7 @@ class CollectMineralShards1d_DQN:
         self.env_name = env_name
         self.visualize = visualize
         self.step_mul = step_mul
+        self.next_group = 0
         self.env = gym.make(self.env_name)
         self.env.settings['visualize'] = self.visualize
         self.env.settings['step_mul'] = self.step_mul
@@ -157,10 +158,9 @@ class CollectMineralShards1d_DQN:
                 while not done:
                     action = self.get_action(self.env, obs)
 
-
                     new_obs, reward, done, _ = self.env.step(action)
 
-                    memory.push(obs, action, new_obs, reward)
+                    memory.push(obs[0]-obs[1], np.ravel_multi_index(action[1:],(16,16)), new_obs[0]-new_obs[1], reward)
                     obs = new_obs
                     if ALGORITHM == 0:
                         optimize_model()
@@ -198,7 +198,13 @@ class CollectMineralShards1d_DQN:
             shards = np.array(list(zip(neutral_x, neutral_y)))
             closest_ix = np.argmin(np.linalg.norm(np.array(player) - shards, axis=1))
             target = np.ravel_multi_index(shards[closest_ix], obs.shape[1:])
-        return target
+
+        group = [self.next_group + 1]
+        self.next_group = (self.next_group + 1) % 2
+
+        ret = group + list(np.unravel_index(target,(16,16)))
+
+        return ret
 
 
 last_sync = 0
@@ -223,10 +229,10 @@ def optimize_model():
     # We don't want to backprop through the expected action values and volatile
     # will save us on temporarily changing the model parameters'
     # requires_grad to False!
-    non_final_next_states = Variable(torch.cat(torch.from_numpy(np.array([s for s in batch.next_state
-                                                if s is not None]))).unsqueeze(1),
+    non_final_next_states = Variable(torch.from_numpy(np.array([s for s in batch.next_state
+                                                if s is not None])).unsqueeze(1),
                                      volatile=True).type(FloatTensor)
-    state_batch = Variable(torch.cat(torch.from_numpy(np.array(batch.state))).unsqueeze(1)).type(FloatTensor)
+    state_batch = Variable(torch.from_numpy(np.array(batch.state)).unsqueeze(1)).type(FloatTensor)
     action_batch = Variable(torch.from_numpy(np.array(batch.action).transpose()).unsqueeze(1)).type(LongTensor)
     reward_batch = Variable(torch.from_numpy(np.array(batch.reward))).type(FloatTensor)
 
