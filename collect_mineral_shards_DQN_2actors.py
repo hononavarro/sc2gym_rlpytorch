@@ -48,7 +48,7 @@ EPS_END = 0.05
 EPS_DECAY = 200
 
 
-PLOT_GRAPHS = True
+PLOT_GRAPHS = False
 
 class ReplayMemory(object):
 
