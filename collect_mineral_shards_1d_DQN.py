@@ -28,7 +28,7 @@ _NO_OP = 0
 _ENV_NAME = "SC2CollectMineralShards-v0"
 _VISUALIZE = False
 _STEP_MUL = None
-_NUM_EPISODES = 10000
+_NUM_EPISODES = 30000
 
 # if gpu is to be used
 use_cuda = torch.cuda.is_available()
