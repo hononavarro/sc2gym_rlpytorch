@@ -51,6 +51,7 @@ class CNNPolicy(FFPolicy):
         if action_space.__class__.__name__ == "Discrete":
             num_outputs = action_space.n
             self.dist = Categorical(512, num_outputs)
+
         elif action_space.__class__.__name__ == "Box":
             num_outputs = action_space.shape[0]
             self.dist = DiagGaussian(512, num_outputs)
@@ -114,6 +115,7 @@ class CNNPolicy(FFPolicy):
         #             outputs.append(hx)
         #         x = torch.cat(outputs, 0)
         y = self.critic_linear(x)
+
         return y, x, states
 
 
