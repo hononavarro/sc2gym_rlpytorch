@@ -5,7 +5,7 @@ import numpy as np
 rewards_hardcoded = np.load("episodeReward_2.npy")
 rewards_random = np.load("episodeReward_1.npy")
 rewards_dqn = np.load("episodeReward_0.npy")
-rewards_doubleduelingdqn = np.load("episodeReward_0DoubleDuelingQN.npy")
+rewards_doubleduelingdqn = np.load("episodeReward_DDDQN3000.npy")
 reward_dqn_2agents = np.load("episodeReward_DQN2agents0.npy")
 
 def get_mean(rewards):
