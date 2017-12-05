@@ -216,8 +216,8 @@ class CollectMineralShards1d_DQN:
                 if PLOT_GRAPHS:
                     plot_rewards()
 
-            np.save("episodeReward_DDQN"+str(ALGORITHM),np.array(episode_rewards))
-            np.save("episodeRewardMean100_DDQN" + str(ALGORITHM),np.array(means))
+            np.save("episodeReward_DoubleDuelingDQN"+str(ALGORITHM),np.array(episode_rewards))
+            np.save("episodeRewardMean100_DoubleDuelingDQN" + str(ALGORITHM),np.array(means))
             episode_rewards = []
             means = []
 
