@@ -11,6 +11,8 @@ import time
 from models.storage_aux import RolloutStorage
 from models.a2c import CNNPolicy
 from torch.autograd import Variable
+import torch.nn as nn
+
 
 
 import math
@@ -147,6 +149,7 @@ def main():
 
     ####################
     #TODO LIST TO STUDY:
+    #* do an action properly
     #* generalized advantage estimation
     #* why gae and why it is useful?
     #* how many steps to compute? where are they defined? How can they affect us?
@@ -161,6 +164,14 @@ def main():
     CUDA=True
     RECURRENT_POLICY=False
     TAU=0.95
+    #value loss coefficient
+    #reduce the influence of the value to the final loss
+    VALUE_LOSS_COEF=0.5
+    #influence of entropy to the final loss value
+    ENTROPY_LOSS_COEF=0.5
+
+    #gradient clipping
+    MAX_GRAD_NORM=0.5
 
     #use generalized advantage estimation
     GAE=False
@@ -177,9 +188,7 @@ def main():
     #TODO this should be given by env
     obs_shape = [64, 64]
 
-
     envs = [CollectMineralShards_A2C(_ENV_NAME, _VISUALIZE, _STEP_MUL) for i in range(NUM_AGENTS)]
-    #jenvs = [gym.make(_ENV_NAME) for i in range(NUM_AGENTS)]
 
     envs = SubprocVecEnv(envs)
 
@@ -193,13 +202,18 @@ def main():
     if len(envs.observation_space.shape) == 3:
         actor_critic = CNNPolicy(obs_shape[0], envs.action_space, RECURRENT_POLICY)
 
-    action_shape = envs.action_space.shape
+   # action_shape = envs.action_space.shape[0]
+    action_shape = envs.action_space.n
+
 
     if CUDA:
         actor_critic.cuda()
 
+    #optimize...
     optimizer = optim.RMSprop(actor_critic.parameters(), LR, eps=EPS, alpha=ALPHA)
+
     rollouts = RolloutStorage(NUM_STEPS, NUM_AGENTS, obs_shape, envs.action_space, actor_critic.state_size)
+    #initialize observations
     current_obs = torch.zeros(NUM_AGENTS, *obs_shape)
 
     def update_current_obs(obs):
@@ -233,11 +247,12 @@ def main():
                 Variable(rollouts.states[step], volatile=True),
                 Variable(rollouts.masks[step], volatile=True))
 
-            #TODO esto que conyo es?
+
+            #action of 1 x batch
             cpu_actions = action.data.squeeze(1).cpu().numpy()
 
             # Obser reward and next obs
-            #TODO esto esta bien? no le tendiramos que poner como dos valores por cabeza?
+            # after getting the actions (presumably one coordinate) and get the results
             obs, reward, done, info = envs.step(cpu_actions)
             reward = torch.from_numpy(np.expand_dims(np.stack(reward), 1)).float()
             episode_rewards += reward
@@ -256,10 +271,11 @@ def main():
             else:
                 current_obs *= masks
 
+            #update the current obs
             update_current_obs(obs)
+            #push the current obs
             rollouts.insert(step, current_obs, states.data, action.data, action_log_prob.data, value.data, reward,
                             masks)
-
 
         next_value = actor_critic(Variable(rollouts.observations[-1], volatile=True),
                               Variable(rollouts.states[-1], volatile=True),
@@ -268,11 +284,14 @@ def main():
         #here we do backtrace and compute everything with bellman equation
         rollouts.compute_returns(next_value, GAE, GAMMA, TAU)
 
+        prev = rollouts.actions
+        aux=Variable(rollouts.actions.view(-1, 1))
+
         values, action_log_probs, dist_entropy, states = actor_critic.evaluate_actions(
             Variable(rollouts.observations[:-1].view(-1, *obs_shape)),
             Variable(rollouts.states[0].view(-1, actor_critic.state_size)),
             Variable(rollouts.masks[:-1].view(-1, 1)),
-            Variable(rollouts.actions.view(-1, action_shape)))
+            aux)
 
         #Advantagde (the second A)
         #########################
@@ -288,9 +307,9 @@ def main():
         action_loss = -(Variable(advantages.data) * action_log_probs).mean()
 
     optimizer.zero_grad()
-    (value_loss * args.value_loss_coef + action_loss - dist_entropy * args.entropy_coef).backward()
+    (value_loss * VALUE_LOSS_COEF + action_loss - dist_entropy * ENTROPY_LOSS_COEF).backward()
 
-    nn.utils.clip_grad_norm(actor_critic.parameters(), args.max_grad_norm)
+    nn.utils.clip_grad_norm(actor_critic.parameters(), MAX_GRAD_NORM)
 
     optimizer.step()
 
