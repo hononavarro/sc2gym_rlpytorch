@@ -12,7 +12,7 @@ from torch.autograd import Variable
 import numpy as np
 import gym
 from absl import flags
-
+import copy
 # noinspection PyUnresolvedReferences
 import sc2gym.envs
 
@@ -46,6 +46,10 @@ GAMMA = 0.999
 EPS_START = 0.9
 EPS_END = 0.05
 EPS_DECAY = 200
+
+#update period
+UPDATE_PERIOD = 10000
+
 
 
 PLOT_GRAPHS = False
@@ -90,7 +94,39 @@ class DQN(nn.Module):
         return self.head(x)
 
 
-model = DQN()
+class Dueling_DQN(nn.Module):
+
+    def __init__(self):
+        super(Dueling_DQN, self).__init__()
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=5, stride=1)
+        self.bn1 = nn.BatchNorm2d(16)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1)
+        self.bn2 = nn.BatchNorm2d(32)
+
+        #state function
+        self.state_hidden = nn.Linear(3200, 1024)
+        self.state_head = nn.Linear(1024, 1)
+
+        #advantage function
+        self.adv_hidden = nn.Linear(3200, 1024)
+        self.action_head = nn.Linear(1024, 256)
+
+    def forward(self, x):
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.bn2(self.conv2(x)))
+
+        state_hidden = F.relu(self.state_hidden(x.view(x.size(0), -1)))
+        state_value = self.state_head(state_hidden)
+
+        action_hidden = F.relu(self.adv_hidden(x.view(x.size(0), -1)))
+        action_value = self.action_head(action_hidden)
+
+        return state_value + (action_value - action_value.mean())
+
+#model = DQN()
+model = Dueling_DQN()
+target_model = None
+
 
 if use_cuda:
     model.cuda()
@@ -148,23 +184,32 @@ class CollectMineralShards1d_DQN:
     def run(self, num_episodes=1):
         global ALGORITHM
         global episode_rewards, reward_per_episode,means
+        global target_model
+        total_steps = 0
+
         for ALGORITHM in [0]:
             reward_per_episode = []
             #episode_rewards = np.zeros((num_episodes, ), dtype=np.int32)
-
             for ix in range(num_episodes):
                 obs = self.env.reset()
                 done = False
                 while not done:
+                    # maybe update target network
+                    if total_steps % UPDATE_PERIOD == 0:
+                        target_model = copy.deepcopy(model)
+                        if use_cuda:
+                            target_model.cuda()
+
                     action = self.get_action(self.env, obs)
 
                     new_obs, reward, done, _ = self.env.step(action)
 
-                    memory.push(obs[0]-obs[1], np.ravel_multi_index(action[1:],(16,16)), new_obs[0]-obs[1], reward)
+                    memory.push(obs[0] - obs[1], np.ravel_multi_index(action[1:], (16, 16)), new_obs[0] - obs[1],
+                                reward)
                     obs = new_obs
                     if ALGORITHM == 0:
                         optimize_model()
-
+                    total_steps += 1
                     reward_per_episode.append(reward)
 
                 episode_rewards.append(np.sum(np.array(reward_per_episode)))
@@ -172,8 +217,8 @@ class CollectMineralShards1d_DQN:
                 if PLOT_GRAPHS:
                     plot_rewards()
 
-            np.save("episodeReward_DQN2agents"+str(ALGORITHM),np.array(episode_rewards))
-            np.save("episodeRewardMean100_DQN2agents" + str(ALGORITHM),np.array(means))
+            np.save("episodeReward_DDDQN2agents"+str(ALGORITHM),np.array(episode_rewards))
+            np.save("episodeRewardMean100_DDDQN2agents" + str(ALGORITHM),np.array(means))
             episode_rewards = []
             means = []
 
@@ -255,7 +300,7 @@ def optimize_model():
     updates += 1
 
 
-    next_state_values[non_final_mask] = model(non_final_next_states).max(1)[0]
+    next_state_values[non_final_mask] = target_model(non_final_next_states).max(1)[0]
     # Now, we don't want to mess up the loss with a volatile flag, so let's
     # clear it. After this, we'll just end up with a Variable that has
     # requires_grad=False
