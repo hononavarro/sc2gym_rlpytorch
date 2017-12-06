@@ -183,12 +183,11 @@ class CollectMineralShards1d_DQN:
 
     def run(self, num_episodes=1):
         global ALGORITHM
-        global episode_rewards, reward_per_episode,means
+        global episode_rewards, means
         global target_model
         total_steps = 0
 
         for ALGORITHM in [0]:
-            reward_per_episode = []
             #episode_rewards = np.zeros((num_episodes, ), dtype=np.int32)
             for ix in range(num_episodes):
                 obs = self.env.reset()
@@ -210,10 +209,10 @@ class CollectMineralShards1d_DQN:
                     if ALGORITHM == 0:
                         optimize_model()
                     total_steps += 1
-                    reward_per_episode.append(reward)
 
-                episode_rewards.append(np.sum(np.array(reward_per_episode)))
-                reward_per_episode = []
+
+                episode_rewards.append(self.env.getEpisodeReward())
+
                 if PLOT_GRAPHS:
                     plot_rewards()
 

@@ -26,7 +26,7 @@ _PLAYER_NEUTRAL = 3  # beacon/minerals
 _NO_OP = 0
 
 _ENV_NAME = "SC2CollectMineralShards-v0"
-_VISUALIZE = False
+_VISUALIZE = True
 _STEP_MUL = None
 _NUM_EPISODES = 30000
 
@@ -48,7 +48,7 @@ EPS_END = 0.05
 EPS_DECAY = 200
 
 
-PLOT_GRAPHS = False
+PLOT_GRAPHS = True
 
 class ReplayMemory(object):
 
@@ -156,8 +156,6 @@ class CollectMineralShards1d_DQN:
                 done = False
                 while not done:
                     action = self.get_action(self.env, obs)
-
-
                     new_obs, reward, done, _ = self.env.step(action)
 
                     memory.push(obs, action, new_obs, reward)
