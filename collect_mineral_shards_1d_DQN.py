@@ -26,7 +26,7 @@ _PLAYER_NEUTRAL = 3  # beacon/minerals
 _NO_OP = 0
 
 _ENV_NAME = "SC2CollectMineralShards-v0"
-_VISUALIZE = True
+_VISUALIZE = False
 _STEP_MUL = None
 _NUM_EPISODES = 100000
 
@@ -48,7 +48,7 @@ EPS_END = 0.05
 EPS_DECAY = 200
 
 
-PLOT_GRAPHS = True
+PLOT_GRAPHS = False
 save_interval = 5000
 class ReplayMemory(object):
 
