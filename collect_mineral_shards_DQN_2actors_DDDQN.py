@@ -28,7 +28,7 @@ _NO_OP = 0
 _ENV_NAME = "SC2CollectMineralShards-v2"
 _VISUALIZE = True
 _STEP_MUL = None
-_NUM_EPISODES = 50000
+_NUM_EPISODES = 100000
 
 # if gpu is to be used
 use_cuda = torch.cuda.is_available()
@@ -49,7 +49,7 @@ EPS_DECAY = 200
 
 #update period
 UPDATE_PERIOD = 10000
-
+save_interval = 5000
 
 
 PLOT_GRAPHS = True
@@ -215,9 +215,10 @@ class CollectMineralShards1d_DQN:
 
                 if PLOT_GRAPHS:
                     plot_rewards()
+                if ix % save_interval == 0:
+                    np.save("episodeReward_DDDQN2agents"+str(ix),np.array(episode_rewards))
+                    np.save("episodeRewardMean100_DDDQN2agents" + str(ix),np.array(means))
 
-            np.save("episodeReward_DDDQN2agents"+str(ALGORITHM),np.array(episode_rewards))
-            np.save("episodeRewardMean100_DDDQN2agents" + str(ALGORITHM),np.array(means))
             episode_rewards = []
             means = []
 
