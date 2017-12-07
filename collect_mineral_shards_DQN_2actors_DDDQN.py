@@ -26,9 +26,9 @@ _PLAYER_NEUTRAL = 3  # beacon/minerals
 _NO_OP = 0
 
 _ENV_NAME = "SC2CollectMineralShards-v2"
-_VISUALIZE = False
+_VISUALIZE = True
 _STEP_MUL = None
-_NUM_EPISODES = 30000
+_NUM_EPISODES = 50000
 
 # if gpu is to be used
 use_cuda = torch.cuda.is_available()
@@ -52,7 +52,7 @@ UPDATE_PERIOD = 10000
 
 
 
-PLOT_GRAPHS = False
+PLOT_GRAPHS = True
 
 class ReplayMemory(object):
 
