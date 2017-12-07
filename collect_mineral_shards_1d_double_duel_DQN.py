@@ -29,7 +29,7 @@ _NO_OP = 0
 _ENV_NAME = "SC2CollectMineralShards-v0"
 _VISUALIZE = False
 _STEP_MUL = None
-_NUM_EPISODES = 30000
+_NUM_EPISODES = 100000
 
 
 # if gpu is to be used
@@ -53,7 +53,7 @@ EPS_DECAY = 200
 UPDATE_PERIOD = 10000
 
 PLOT_GRAPHS = False
-
+save_interval = 5000
 class ReplayMemory(object):
 
     def __init__(self, capacity):
@@ -215,9 +215,9 @@ class CollectMineralShards1d_DQN:
                 reward_per_episode = []
                 if PLOT_GRAPHS:
                     plot_rewards()
-
-            np.save("episodeReward_DoubleDuelingDQN"+str(ALGORITHM),np.array(episode_rewards))
-            np.save("episodeRewardMean100_DoubleDuelingDQN" + str(ALGORITHM),np.array(means))
+                if ix % save_interval == 0:
+                    np.save("episodeReward_DoubleDuelingDQN"+str(ALGORITHM),np.array(episode_rewards))
+                    np.save("episodeRewardMean100_DoubleDuelingDQN" + str(ALGORITHM),np.array(means))
             episode_rewards = []
             means = []
 
